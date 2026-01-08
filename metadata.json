@@ -1,7 +1,0 @@
-{
-  "name": "Guru Wali Connect",
-  "description": "Aplikasi manajemen data Guru Wali dengan integrasi Google Sheets, PDF export, dan sistem login.",
-  "requestFramePermissions": [
-    "camera"
-  ]
-}
