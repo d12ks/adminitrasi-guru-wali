@@ -253,7 +253,12 @@ const InputData: React.FC = () => {
     const handleAIGenerate = async (fieldKey: string) => {
         setIsAiLoading(fieldKey);
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            const apiKey = process.env.API_KEY;
+            if (!apiKey) {
+                throw new Error("API Key belum disetting di Hosting/Environment Variables.");
+            }
+
+            const ai = new GoogleGenAI({ apiKey });
             const prompt = `Sebagai Guru Wali di SMKN 1 Mondokan, buatkan kalimat narasi atau deskripsi singkat untuk laporan siswa pada kolom "${fieldKey.replace(/_/g, ' ')}". 
             Berikan contoh kalimat yang positif, membangun, dan profesional. 
             Tidak perlu terlalu panjang (maksimal 2-3 kalimat).`;
@@ -271,9 +276,10 @@ const InputData: React.FC = () => {
                 }));
                 setUnsavedChanges(true);
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error("AI Generation Error:", error);
-            alert("Gagal menggunakan AI. Coba lagi nanti.");
+            // Tampilkan pesan error spesifik agar user tahu masalahnya
+            alert(`Gagal menggunakan AI:\n${error.message || error}`);
         } finally {
             setIsAiLoading(null);
         }

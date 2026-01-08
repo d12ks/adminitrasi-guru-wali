@@ -25,14 +25,14 @@ const Dashboard: React.FC = () => {
     <div className="max-w-5xl mx-auto">
       {/* Greeting Section */}
       <div className="mb-4 md:mb-8 bg-blue-50 dark:bg-blue-900/10 p-4 rounded-xl md:bg-transparent md:p-0">
-        <h1 className="text-xl md:text-3xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
-           Halo, <span className="text-primary truncate max-w-[150px] md:max-w-none">{user?.name}</span> 👋
-        </h1>
+        <h3 className="text-xs md:text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
+           Halo, <span className="text-primary truncate max-w-[150px] md:max-w-none">{identity?.namaGuru}</span> 👋
+        </h3>
         <p className="text-xs md:text-base text-gray-500 dark:text-gray-400 mt-1">
             Guru Wali SMK Negeri 1 Mondokan 
         </p>
          <p className="text-xs md:text-base text-gray-500 dark:text-gray-400 mt-1">
-         • {new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+         {new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
          </p>
       </div>
 

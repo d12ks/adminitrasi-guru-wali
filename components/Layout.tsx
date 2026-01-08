@@ -47,7 +47,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex flex-col w-64 bg-white dark:bg-paperDark border-r dark:border-gray-700 h-screen sticky top-0 no-print">
         <div className="p-6 border-b dark:border-gray-700 flex flex-col items-center text-center">
-          <h1 className="text-xl font-bold text-primary">Guru Wali Connect</h1>
+          <h1 className="text-xl font-bold text-primary">Adm. Guru Wali</h1>
           <p className="text-xs text-gray-500 mt-1">{isOnline ? 'Online' : 'Offline Mode'}</p>
         </div>
         
