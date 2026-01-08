@@ -12,7 +12,6 @@ const HEADER_KEY_ROW = 1;     // Row containing system keys (e.g., Akademik_Desk
 const DATA_START_ROW = 4;     
 
 // MAPPING: Frontend Name -> Real Spreadsheet Name
-// This prevents conflict with your existing sheets.
 const SHEET_MAP = {
   'legerNilaiSemester': 'db_leger_nilai',
   'pertemuan1': 'db_pertemuan1',
@@ -24,44 +23,27 @@ const SHEET_MAP = {
 };
 
 function doGet(e) {
-  // PERBAIKAN: Mengembalikan HTML sederhana untuk status Server.
   return HtmlService.createHtmlOutput(
     "<html><body style='font-family: sans-serif; text-align: center; margin-top: 50px;'>" +
     "<h1>Guru Wali API Service</h1>" +
     "<p style='color: green; font-weight: bold;'>Status: Online</p>" +
     "<p>Backend Google Apps Script berjalan normal.</p>" +
-    "<hr>" +
-    "<p style='color: #666;'><b>PENTING UNTUK DEVELOPER:</b></p>" +
-    "<p>Jangan gunakan URL ini di <code>MainActivity.java</code>.</p>" +
-    "<p>Gunakan URL dari <b>Netlify/Vercel</b> (Frontend) di Android Studio.</p>" +
     "</body></html>"
   ).setTitle("Guru Wali Backend API");
 }
 
-/**
- * UTILITY: RUN THIS FUNCTION MANUALLY ONCE TO SETUP YOUR MASTER TEMPLATE
- * This creates all the DB sheets with correct headers in the Master Spreadsheet
- */
 function setupMasterTemplate() {
   const ss = SpreadsheetApp.openById(MASTER_TEMPLATE_ID);
-  
   Object.keys(SHEET_MAP).forEach(frontendName => {
-    Logger.log("Setting up: " + frontendName);
     checkAndSetupSheet(ss, frontendName);
   });
-  
-  Logger.log("Selesai! Cek Spreadsheet Master Anda.");
 }
 
-/**
- * Handle POST requests
- */
 function doPost(e) {
   const output = ContentService.createTextOutput();
   let result = {};
 
   try {
-    // Handle generic CORS preflight or empty requests
     if (!e.postData || !e.postData.contents) {
        return output.setContent(JSON.stringify({ error: "No data" })).setMimeType(ContentService.MimeType.JSON);
     }
@@ -77,7 +59,6 @@ function doPost(e) {
       result = getStudents(params.email);
     } 
     else if (action === 'getIdentity') {
-      // Pass sheetName param to distinguish between 'identitas' and 'sampul'
       result = getIdentity(params.email, params.sheetName);
     } 
     else if (action === 'getProker') {
@@ -109,7 +90,6 @@ function doPost(e) {
 
 function loginAndGetFileId(email) {
   if (!email) email = Session.getActiveUser().getEmail();
-  // Fallback for testing/anonymous
   if (!email) return MASTER_TEMPLATE_ID; 
 
   const userFile = findFileByName(email + "_GuruWali");
@@ -144,6 +124,46 @@ function getSpreadsheet(email) {
   return SpreadsheetApp.openById(fileId);
 }
 
+// --- DATE HELPERS ---
+
+const MONTHS_ID = [
+  "Januari", "Februari", "Maret", "April", "Mei", "Juni", 
+  "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+];
+
+// Convert YYYY-MM-DD -> 20 Januari 2024 (For Sheet Storage)
+function formatToIndonesianDate(dateStr) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
+  
+  const parts = dateStr.split("-"); // [YYYY, MM, DD]
+  const year = parts[0];
+  const monthIndex = parseInt(parts[1], 10) - 1;
+  const day = parts[2];
+  
+  if (monthIndex >= 0 && monthIndex < 12) {
+    return `${day} ${MONTHS_ID[monthIndex]} ${year}`;
+  }
+  return dateStr;
+}
+
+// Convert 20 Januari 2024 -> YYYY-MM-DD (For Frontend API)
+function parseIndonesianDateToIso(indoDateStr) {
+  if (!indoDateStr || typeof indoDateStr !== 'string') return indoDateStr;
+  
+  const parts = indoDateStr.split(" ");
+  if (parts.length !== 3) return indoDateStr; // Not matching format
+
+  const day = parts[0].padStart(2, '0');
+  const monthName = parts[1];
+  const year = parts[2];
+
+  const monthIndex = MONTHS_ID.indexOf(monthName);
+  if (monthIndex === -1) return indoDateStr;
+
+  const month = (monthIndex + 1).toString().padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 // --- STATIC DATA HANDLERS ---
 
 function getStudents(email) {
@@ -172,7 +192,6 @@ function getStudents(email) {
 
 function getIdentity(email, sheetName) {
   const ss = getSpreadsheet(email);
-  // Default to 'identitas' if no sheetName provided
   const targetSheet = sheetName || 'identitas';
   const sheet = ss.getSheetByName(targetSheet);
   
@@ -209,12 +228,23 @@ function getJadwal(email) {
   const sheet = ss.getSheetByName('jadwal');
   if(!sheet) return [];
   
-  const gasalData = sheet.getRange("A9:C11").getValues();
-  const genapData = sheet.getRange("A16:C18").getValues();
+  // Revised Ranges: Gasal A8:C11, Genap A15:C18
+  const gasalData = sheet.getRange("A8:C11").getValues();
+  const genapData = sheet.getRange("A15:C18").getValues();
   
   const result = [];
-  gasalData.forEach((r, i) => result.push({ id: i, bulan: r[0], kegiatan: r[1], keterangan: r[2], semesterType: 'Gasal' }));
-  genapData.forEach((r, i) => result.push({ id: i + 3, bulan: r[0], kegiatan: r[1], keterangan: r[2], semesterType: 'Genap' }));
+  
+  gasalData.forEach((r, i) => {
+    if (String(r[0]).trim() !== "" || String(r[1]).trim() !== "") {
+      result.push({ id: i, bulan: r[0], kegiatan: r[1], keterangan: r[2], semesterType: 'Gasal' });
+    }
+  });
+
+  genapData.forEach((r, i) => {
+    if (String(r[0]).trim() !== "" || String(r[1]).trim() !== "") {
+      result.push({ id: i + 4, bulan: r[0], kegiatan: r[1], keterangan: r[2], semesterType: 'Genap' });
+    }
+  });
   
   return result;
 }
@@ -310,7 +340,14 @@ function getGenericData(frontendName, email) {
   return data.map(row => {
     let obj = {};
     headers.forEach((header, index) => {
-      if(header) obj[String(header).trim()] = row[index];
+      if(header) {
+        let val = row[index];
+        // Convert Back to ISO date for Frontend Date Picker if needed
+        if (typeof val === 'string' && val.match(/\d{1,2}\s[A-Za-z]+\s\d{4}/)) {
+           val = parseIndonesianDateToIso(val);
+        }
+        obj[String(header).trim()] = val;
+      }
     });
     return obj;
   });
@@ -345,21 +382,30 @@ function updateSheetData(frontendName, data, email) {
     const gasal = data.filter(d => d.semesterType === 'Gasal').map(d => [d.bulan, d.kegiatan, d.keterangan]);
     const genap = data.filter(d => d.semesterType === 'Genap').map(d => [d.bulan, d.kegiatan, d.keterangan]);
     
-    if (gasal.length > 0) sheet.getRange(9, 1, gasal.length, 3).setValues(gasal);
-    if (genap.length > 0) sheet.getRange(16, 1, genap.length, 3).setValues(genap);
+    // Revised Range: Write exactly to A8 and A15
+    if (gasal.length > 0) sheet.getRange(8, 1, gasal.length, 3).setValues(gasal);
+    if (genap.length > 0) sheet.getRange(15, 1, genap.length, 3).setValues(genap);
   }
   else if (frontendName === 'dataSiswa') {
-    const lastRow = sheet.getLastRow();
-    if (lastRow >= 2) {
-      sheet.getRange(2, 1, lastRow - 1, 8).clearContent();
+    const maxRows = sheet.getMaxRows();
+    if (maxRows >= 2) {
+      sheet.getRange(2, 1, maxRows - 1, 8).clearContent();
     }
+    
     if (data.length > 0) {
       const values = data.map((s, idx) => [
-        idx + 1, s.name, s.nis, s.nisn, s.class, 
+        idx + 1, 
+        s.name, 
+        "'" + s.nis,  // Force string to keep leading zeros
+        "'" + s.nisn, // Force string to keep leading zeros
+        s.class, 
         s.gender || '', s.contact || '', s.notes || ''
       ]);
       sheet.getRange(2, 1, values.length, 8).setValues(values);
     }
+    SpreadsheetApp.flush();
+    
+    syncStudentToDbSheets(ss, data);
   }
   else {
       const studentId = data.studentId;
@@ -394,11 +440,41 @@ function updateSheetData(frontendName, data, email) {
               sheet.getRange(HEADER_KEY_ROW, colIndex + 1).setValue(key);
               headers.push(key);
           }
-          sheet.getRange(rowIndex, colIndex + 1).setValue(data[key]);
+          
+          let val = data[key];
+          // If value looks like date YYYY-MM-DD, convert it to Indonesian Text for Spreadsheet
+          if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(val)) {
+             val = formatToIndonesianDate(val);
+          }
+          
+          sheet.getRange(rowIndex, colIndex + 1).setValue(val);
       });
   }
   
   return true;
+}
+
+function syncStudentToDbSheets(ss, studentList) {
+  const targets = Object.keys(SHEET_MAP).map(k => SHEET_MAP[k]);
+  
+  targets.forEach(dbName => {
+    let sheet = ss.getSheetByName(dbName);
+    if(!sheet) return;
+    
+    const lastRow = sheet.getLastRow();
+    let existingIds = [];
+    if(lastRow >= DATA_START_ROW) {
+       existingIds = sheet.getRange(DATA_START_ROW, 1, lastRow - (DATA_START_ROW - 1), 1).getValues().flat().map(String);
+    }
+    
+    const missing = studentList.filter(s => !existingIds.includes(String(s.no)));
+    
+    if(missing.length > 0) {
+       let startAppendRow = lastRow < DATA_START_ROW ? DATA_START_ROW : lastRow + 1;
+       const newIds = missing.map(s => [s.no]);
+       sheet.getRange(startAppendRow, 1, newIds.length, 1).setValues(newIds);
+    }
+  });
 }
 
 function getExportPdfUrl(frontendName, email) {

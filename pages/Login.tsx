@@ -48,8 +48,9 @@ const Login: React.FC = () => {
             <div className="inline-flex p-4 bg-primary/10 rounded-full text-primary mb-4">
                 <GraduationCap size={40} />
             </div>
-            <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Selamat Datang</h2>
-            <p className="text-gray-500 dark:text-gray-400 mt-2">Administrasi Guru Wali</p>
+            <h2 className="text-2xl font-bold text-gray-800 dark:text-white">GURU WALI</h2>
+            <p className="text-gray-500 dark:text-gray-400 mt-2">Administrasi & Pelaporan</p>
+            <p className="text-gray-500 dark:text-gray-400 mt-2"> Murid Dampingan</p>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-4">

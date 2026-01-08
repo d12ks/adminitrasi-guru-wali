@@ -31,6 +31,19 @@ Ikuti urutan langkah di bawah ini:
 
    > **Catatan:** Pastikan URL Google Apps Script (`.../exec`) sudah Anda tempel dengan benar di file `services/gasService.ts` sebelum melakukan Build.
 
+### ⚠️ TAHAP 1.5: Konfigurasi API Key (WAJIB UNTUK AI) ⚠️
+Fitur **Bantuan AI** membutuhkan kunci (API Key) dari Google Gemini. Kunci ini **TIDAK** ikut ter-upload otomatis demi keamanan. Anda harus menambahkannya manual di Netlify.
+
+1. Buka dashboard Netlify Anda, klik pada project website yang baru saja di-deploy.
+2. Pergi ke **Site settings** > **Environment variables**.
+3. Klik tombol **Add a variable**.
+4. Isi data berikut:
+   - **Key:** `API_KEY`
+   - **Value:** (Masukkan API Key Google Gemini Anda di sini)
+5. Klik **Create variable**.
+6. **PENTING:** Setelah menambahkan variable, Anda harus melakukan **Build Ulang** atau Re-deploy agar settingan ini aktif.
+   - Pergi ke tab **Deploys** -> Klik tombol **Trigger deploy** -> **Clear cache and deploy site**.
+
 ---
 
 ## TAHAP 2: Setup Android Studio
@@ -306,3 +319,63 @@ Karena kita mengubah pengaturan notifikasi, lakukan langkah ini agar "bersih":
 5.  Saat pertama kali dibuka, **IZINKAN** notifikasi jika diminta.
 
 Sekarang, saat Anda klik unduh PDF, notifikasi akan berbunyi, bergetar, dan muncul pop-up di bagian atas layar dengan tombol "BUKA PDF".
+
+---
+
+## TAHAP 4: Panduan Update Source Code ke GitHub
+
+Jika Anda menggunakan hosting yang terhubung otomatis dengan GitHub (seperti Netlify, Vercel) atau hanya ingin mem-backup kode, ikuti panduan ini.
+
+### 1. Daftar File yang WAJIB Di-update
+Pastikan **semua** file di bawah ini ikut ter-upload. Jika salah satu tertinggal, fitur PDF atau AI bisa error.
+
+*   `pages/Reports.tsx`
+*   `pages/InputData.tsx`
+*   `services/gasService.ts`
+*   `types.ts`
+*   **`index.html`** (Mengandung script library PDF)
+*   **`index.css`** (Mengandung aturan print/margin PDF)
+
+### 2. Cara Update Menggunakan CMD (Terminal)
+Ini adalah cara paling aman dan direkomendasikan.
+
+1.  **Buka Terminal**
+    Buka folder project Anda di Windows Explorer. Klik kanan di ruang kosong -> **Open in Terminal** (atau ketik `cmd` di address bar atas folder, lalu tekan Enter).
+
+2.  **Cek Status (Opsional)**
+    Ketik perintah ini untuk melihat file apa saja yang berubah (berwarna merah):
+    ```bash
+    git status
+    ```
+
+3.  **Pilih Semua File (Add)**
+    Ketik perintah ini untuk memasukkan semua file yang berubah ke antrean upload:
+    ```bash
+    git add .
+    ```
+
+4.  **Simpan Perubahan (Commit)**
+    Berikan pesan catatan tentang apa yang Anda update:
+    ```bash
+    git commit -m "Update fitur PDF margin, AI prompt, dan perbaikan UI"
+    ```
+
+5.  **Kirim ke GitHub (Push)**
+    Ketik perintah ini untuk meng-upload ke repository GitHub Anda:
+    ```bash
+    git push origin main
+    ```
+    *(Jika branch utama Anda bernama 'master', ganti 'main' dengan 'master')*
+
+### 3. Cara Update Manual (Via Browser)
+Jika Anda tidak menggunakan Git di CMD:
+
+1.  Buka repository GitHub Anda di browser.
+2.  Klik tombol **Add file** -> **Upload files**.
+3.  **Drag & Drop** file-file yang telah Anda ubah (`Reports.tsx`, `InputData.tsx`, `index.html`, dll) ke area upload.
+    *   *PENTING:* Pastikan Anda meletakkan file sesuai struktur foldernya. Lebih aman menggunakan CMD agar tidak salah folder.
+4.  Scroll ke bawah, isi pesan di kolom "Commit changes".
+5.  Klik tombol hijau **Commit changes**.
+
+### 4. Selesai
+Jika hosting Anda (Netlify) terhubung ke GitHub, proses **Build** akan berjalan otomatis dalam 1-2 menit. Setelah selesai, perubahan akan langsung aktif di Website dan Aplikasi Android Anda.
