@@ -67,6 +67,7 @@ const Dashboard: React.FC = () => {
     </div>
   );
 };
+// TEST UPDATE GIT
 
 const InfoRow = ({label, value}: {label: string, value?: string}) => (
     <div className="grid grid-cols-[100px_10px_1fr] items-start text-sm md:text-base">

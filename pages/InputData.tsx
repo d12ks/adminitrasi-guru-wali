@@ -10,6 +10,8 @@ import { GoogleGenAI } from "@google/genai";
 type TabType = 'identitas' | 'dataSiswa' | 'proker' | 'jadwal' | 'pertemuan' | 'legerNilaiSemester';
 
 // --- REUSABLE COMPONENTS ---
+// TEST UPDATE GIT
+
 
 const Modal = ({ isOpen, onClose, title, children }: any) => {
     if (!isOpen) return null;
