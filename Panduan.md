@@ -1,63 +1,64 @@
 
-# Panduan Lengkap: Dari Kode ke Aplikasi Android
+# Panduan Lengkap: Guru Wali App
 
-Agar aplikasi berjalan lancar, Anda harus memahami bahwa sistem ini terdiri dari 3 bagian:
-1. **Backend (Otak):** Google Apps Script (GAS).
-2. **Frontend (Wajah):** Website React yang Anda buat ini.
-3. **Android App (Bingkai):** Aplikasi HP yang membuka Frontend.
-
-Ikuti urutan langkah di bawah ini:
+Agar fitur **AI** dan **PDF** berjalan lancar, ikuti panduan konfigurasi API Key di bawah ini dengan teliti.
 
 ---
 
-## TAHAP 1: Deploy Frontend (Website)
-*Anda harus "meng-online-kan" kode React ini terlebih dahulu.*
+## ⚠️ PENTING: Mengatasi Masalah "API Key Tidak Terbaca"
 
-1. **Build Project**
-   Buka terminal di folder project ini, lalu ketik:
-   ```bash
-   npm run build
-   ```
-   Tunggu sampai selesai. Akan muncul folder baru bernama **`dist`**.
+Masalah yang sering terjadi: Anda sudah setting di GitHub, tapi aplikasi tetap error.
+**Penyebab:** GitHub Secrets hanya bekerja jika build dilakukan oleh GitHub. Jika Anda menjalankan `npm run build` di komputer sendiri (Manual Build), GitHub Secrets **TIDAK** akan terbaca.
 
-2. **Upload ke Netlify (Gratis)**
-   - Buka [Netlify Drop](https://app.netlify.com/drop).
-   - **Drag & Drop** folder `dist` tadi ke lingkaran di halaman web Netlify.
-   - Tunggu hingga statusnya "Published".
+### PILIH METODE BUILD ANDA:
 
-3. **Salin URL Website**
-   Netlify akan memberi Anda link, contoh: `https://random-name-123.netlify.app`.
-   **Simpan link ini!** Ini yang akan dipakai di Android Studio.
+#### OPSI A: Build Manual di Komputer (Drag & Drop ke Netlify)
+*Gunakan cara ini jika Anda menjalankan perintah `npm run build` di terminal laptop Anda.*
 
-   > **Catatan:** Pastikan URL Google Apps Script (`.../exec`) sudah Anda tempel dengan benar di file `services/gasService.ts` sebelum melakukan Build.
+1.  **Buat File `.env`**
+    Di dalam folder project Anda (sejajar dengan `package.json`), buat file baru bernama **`.env`** (tanpa nama depan, hanya titik env).
 
-### ⚠️ TAHAP 1.5: Konfigurasi API Key (WAJIB UNTUK AI) ⚠️
-Fitur **Bantuan AI** membutuhkan kunci (API Key) dari Google Gemini. Kunci ini **TIDAK** ikut ter-upload otomatis demi keamanan. Anda harus menambahkannya manual di Netlify.
+2.  **Isi File `.env`**
+    Buka file tersebut dengan Notepad/Text Editor, lalu isi kode berikut:
+    ```env
+    API_KEY=Paste_Kunci_Gemini_Anda_Disini
+    ```
+    *(Jangan pakai tanda petik)*
 
-1. Buka dashboard Netlify Anda, klik pada project website yang baru saja di-deploy.
-2. Pergi ke **Site settings** > **Environment variables**.
-3. Klik tombol **Add a variable**.
-4. Isi data berikut:
-   - **Key:** `API_KEY`
-   - **Value:** (Masukkan API Key Google Gemini Anda di sini)
-5. Klik **Create variable**.
-6. **PENTING:** Setelah menambahkan variable, Anda harus melakukan **Build Ulang** atau Re-deploy agar settingan ini aktif.
-   - Pergi ke tab **Deploys** -> Klik tombol **Trigger deploy** -> **Clear cache and deploy site**.
+3.  **Lakukan Build Ulang**
+    Buka terminal, jalankan:
+    ```bash
+    npm run build
+    ```
+    Proses ini akan "menanam" kunci dari file `.env` ke dalam file aplikasi di folder `dist`.
+
+4.  **Upload Folder `dist`**
+    Drag & drop folder `dist` yang baru ke Netlify Drop.
 
 ---
 
-## TAHAP 2: Setup Android Studio
+#### OPSI B: Build Otomatis via Netlify (Terhubung Git)
+*Gunakan cara ini jika Anda menghubungkan Netlify langsung ke Repository GitHub.*
+
+1.  Buka Dashboard **Netlify**.
+2.  Pilih Site Anda > **Site configuration**.
+3.  Menu **Environment variables**.
+4.  Klik **Add a variable**.
+    *   Key: `API_KEY`
+    *   Value: `(Isi kunci Gemini Anda)`
+5.  Pergi ke menu **Deploys** -> **Trigger deploy** -> **Clear cache and deploy site**.
+    *(GitHub Secrets tidak perlu di-setting jika menggunakan cara ini).*
+
+---
+
+## TAHAP SELANJUTNYA: Setup Android Studio
+
+Jika website sudah bisa dibuka dan AI berjalan lancar di browser HP/Laptop, baru lanjutkan membuat APK.
 
 ### 1. Buat File `res/xml/provider_paths.xml`
-1. Di Android Studio, lihat di sebelah kiri (Project View).
-2. Klik kanan pada folder **`res`** -> **New** -> **Android Resource Directory**.
-   - Pilih Resource type: **xml**.
-   - Klik OK. (Akan muncul folder `xml` di bawah `res`).
-3. Klik kanan pada folder **`xml`** yang baru dibuat -> **New** -> **XML Resource File**.
-4. Beri nama file: **`provider_paths`** (jangan pakai spasi atau huruf besar).
-5. Klik OK.
-6. Hapus semua isi file tersebut, dan ganti dengan kode ini:
-
+1. Di Android Studio, klik kanan folder **`res`** -> **New** -> **Android Resource Directory** (Pilih type: **xml**).
+2. Klik kanan folder **`xml`** -> **New** -> **XML Resource File** -> Beri nama **`provider_paths`**.
+3. Isi dengan kode:
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
@@ -65,27 +66,20 @@ Fitur **Bantuan AI** membutuhkan kunci (API Key) dari Google Gemini. Kunci ini *
 </paths>
 ```
 
-### 2. Update `AndroidManifest.xml` (Update Terbaru)
-Buka file `manifests/AndroidManifest.xml`.
-Copy kode di bawah ini. Kode ini sudah ditambahkan `maxSdkVersion` agar **warning kuning** pada `WRITE_EXTERNAL_STORAGE` hilang.
+### 2. Update `AndroidManifest.xml`
+Pastikan isinya seperti ini (terutama bagian `provider`):
 
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- IZIN -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    
-    <!-- Batasi izin storage hanya untuk Android 12 ke bawah -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
-    
-    <!-- Izin notifikasi wajib untuk Android 13+ -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <queries>
-        <!-- Agar aplikasi bisa membuka PDF Viewer eksternal -->
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:mimeType="application/pdf" />
@@ -117,7 +111,6 @@ Copy kode di bawah ini. Kode ini sudah ditambahkan `maxSdkVersion` agar **warnin
             </intent-filter>
         </activity>
 
-        <!-- CONFIG FILE PROVIDER -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.provider"
@@ -133,10 +126,8 @@ Copy kode di bawah ini. Kode ini sudah ditambahkan `maxSdkVersion` agar **warnin
 </manifest>
 ```
 
-### 3. Update `MainActivity.java` (Versi Prioritas Tinggi)
-Versi ini menggunakan Channel ID baru (`download_channel_new`) untuk memaksa HP mereset pengaturan notifikasi agar muncul sebagai Pop-up (Heads-up).
-
-**PENTING:** Ganti `APP_URL` dengan link Netlify Anda.
+### 3. Update `MainActivity.java`
+Ganti `APP_URL` dengan link Netlify Anda.
 
 ```java
 package com.guru.wali;
@@ -176,9 +167,7 @@ import java.io.FileOutputStream;
 public class MainActivity extends AppCompatActivity {
 
     private WebView myWebView;
-    // GANTI DENGAN URL NETLIFY ANDA
     private static final String APP_URL = "https://GANTI_DENGAN_LINK_NETLIFY_ANDA.netlify.app";
-    // Channel ID diganti agar HP mereset pengaturan prioritas
     private static final String CHANNEL_ID = "download_channel_new";
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -186,7 +175,6 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         
-        // 1. Minta Izin Notifikasi (Wajib untuk Android 13+)
         checkNotificationPermission();
         createNotificationChannel();
 
@@ -227,11 +215,9 @@ public class MainActivity extends AppCompatActivity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             CharSequence name = "File Download";
             String description = "Notifikasi saat file selesai diunduh";
-            // PENTING: IMPORTANCE_HIGH agar muncul pop-up di layar
             int importance = NotificationManager.IMPORTANCE_HIGH;
             NotificationChannel channel = new NotificationChannel(CHANNEL_ID, name, importance);
             channel.setDescription(description);
-            // Aktifkan getar dan lampu
             channel.enableVibration(true);
             channel.enableLights(true);
             
@@ -274,7 +260,6 @@ public class MainActivity extends AppCompatActivity {
                 os.flush();
                 os.close();
 
-                // Setup URI dan Intent
                 Uri contentUri = FileProvider.getUriForFile(mContext, mContext.getPackageName() + ".provider", file);
                 Intent openIntent = new Intent(Intent.ACTION_VIEW);
                 openIntent.setDataAndType(contentUri, "application/pdf");
@@ -283,13 +268,12 @@ public class MainActivity extends AppCompatActivity {
                 PendingIntent pendingIntent = PendingIntent.getActivity(mContext, 0, openIntent, 
                         PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
-                // Buat Notifikasi dengan Prioritas MAX
                 NotificationCompat.Builder builder = new NotificationCompat.Builder(mContext, CHANNEL_ID)
                         .setSmallIcon(android.R.drawable.stat_sys_download_done)
                         .setContentTitle("Download Selesai")
                         .setContentText("Ketuk untuk membuka " + fileName)
-                        .setPriority(NotificationCompat.PRIORITY_MAX) // Memaksa muncul di atas layar
-                        .setDefaults(Notification.DEFAULT_ALL)        // Suara & Getar
+                        .setPriority(NotificationCompat.PRIORITY_MAX)
+                        .setDefaults(Notification.DEFAULT_ALL)
                         .setContentIntent(pendingIntent)
                         .setAutoCancel(true)
                         .addAction(android.R.drawable.ic_menu_view, "BUKA PDF", pendingIntent);
@@ -297,7 +281,6 @@ public class MainActivity extends AppCompatActivity {
                 NotificationManager notificationManager = (NotificationManager) mContext.getSystemService(Context.NOTIFICATION_SERVICE);
                 notificationManager.notify((int) System.currentTimeMillis(), builder.build());
 
-                // Tampilkan Toast juga sebagai cadangan
                 Toast.makeText(mContext, "File disimpan di Download", Toast.LENGTH_SHORT).show();
 
             } catch (Exception e) {
@@ -307,75 +290,3 @@ public class MainActivity extends AppCompatActivity {
     }
 }
 ```
-
-## TAHAP 3: Build APK (Sangat Penting)
-
-Karena kita mengubah pengaturan notifikasi, lakukan langkah ini agar "bersih":
-
-1.  **UNINSTALL** aplikasi Guru Wali yang lama di HP/Emulator Anda terlebih dahulu. (Ini wajib agar Channel ID baru terdaftar).
-2.  Di Android Studio: **Build** > **Clean Project**.
-3.  Lalu **Build** > **Rebuild Project**.
-4.  Jalankan kembali di HP.
-5.  Saat pertama kali dibuka, **IZINKAN** notifikasi jika diminta.
-
-Sekarang, saat Anda klik unduh PDF, notifikasi akan berbunyi, bergetar, dan muncul pop-up di bagian atas layar dengan tombol "BUKA PDF".
-
----
-
-## TAHAP 4: Panduan Update Source Code ke GitHub
-
-Jika Anda menggunakan hosting yang terhubung otomatis dengan GitHub (seperti Netlify, Vercel) atau hanya ingin mem-backup kode, ikuti panduan ini.
-
-### 1. Daftar File yang WAJIB Di-update
-Pastikan **semua** file di bawah ini ikut ter-upload. Jika salah satu tertinggal, fitur PDF atau AI bisa error.
-
-*   `pages/Reports.tsx`
-*   `pages/InputData.tsx`
-*   `services/gasService.ts`
-*   `types.ts`
-*   **`index.html`** (Mengandung script library PDF)
-*   **`index.css`** (Mengandung aturan print/margin PDF)
-
-### 2. Cara Update Menggunakan CMD (Terminal)
-Ini adalah cara paling aman dan direkomendasikan.
-
-1.  **Buka Terminal**
-    Buka folder project Anda di Windows Explorer. Klik kanan di ruang kosong -> **Open in Terminal** (atau ketik `cmd` di address bar atas folder, lalu tekan Enter).
-
-2.  **Cek Status (Opsional)**
-    Ketik perintah ini untuk melihat file apa saja yang berubah (berwarna merah):
-    ```bash
-    git status
-    ```
-
-3.  **Pilih Semua File (Add)**
-    Ketik perintah ini untuk memasukkan semua file yang berubah ke antrean upload:
-    ```bash
-    git add .
-    ```
-
-4.  **Simpan Perubahan (Commit)**
-    Berikan pesan catatan tentang apa yang Anda update:
-    ```bash
-    git commit -m "Update fitur PDF margin, AI prompt, dan perbaikan UI"
-    ```
-
-5.  **Kirim ke GitHub (Push)**
-    Ketik perintah ini untuk meng-upload ke repository GitHub Anda:
-    ```bash
-    git push origin main
-    ```
-    *(Jika branch utama Anda bernama 'master', ganti 'main' dengan 'master')*
-
-### 3. Cara Update Manual (Via Browser)
-Jika Anda tidak menggunakan Git di CMD:
-
-1.  Buka repository GitHub Anda di browser.
-2.  Klik tombol **Add file** -> **Upload files**.
-3.  **Drag & Drop** file-file yang telah Anda ubah (`Reports.tsx`, `InputData.tsx`, `index.html`, dll) ke area upload.
-    *   *PENTING:* Pastikan Anda meletakkan file sesuai struktur foldernya. Lebih aman menggunakan CMD agar tidak salah folder.
-4.  Scroll ke bawah, isi pesan di kolom "Commit changes".
-5.  Klik tombol hijau **Commit changes**.
-
-### 4. Selesai
-Jika hosting Anda (Netlify) terhubung ke GitHub, proses **Build** akan berjalan otomatis dalam 1-2 menit. Setelah selesai, perubahan akan langsung aktif di Website dan Aplikasi Android Anda.

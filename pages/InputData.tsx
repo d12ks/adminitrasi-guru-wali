@@ -255,7 +255,7 @@ const InputData: React.FC = () => {
         try {
             const apiKey = process.env.API_KEY;
             if (!apiKey) {
-                throw new Error("API Key belum disetting di Hosting/Environment Variables.");
+                throw new Error("API Key tidak ditemukan.\n\nSOLUSI UNTUK BUILD MANUAL:\n1. Buat file bernama '.env' di folder project (laptop).\n2. Isi dengan: API_KEY=kunci_gemini_anda\n3. Jalankan 'npm run build' lagi.\n4. Upload ulang folder dist.");
             }
 
             const ai = new GoogleGenAI({ apiKey });
