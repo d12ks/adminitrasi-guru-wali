@@ -3,8 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../contexts/AppContext';
 import { gasService } from '../services/gasService';
 import { IdentityData, Student, ProkerItem, JadwalItem, SheetName } from '../types';
-import { Save, Edit2, Loader2, X, Check, Plus, Trash2, Sparkles } from 'lucide-react';
-import { GoogleGenAI } from "@google/genai";
+import { Save, Edit2, Loader2, X, Check, Plus, Trash2 } from 'lucide-react';
 
 // --- TYPE DEFINITIONS FOR LOCAL STATE ---
 type TabType = 'identitas' | 'dataSiswa' | 'proker' | 'jadwal' | 'pertemuan' | 'legerNilaiSemester';
@@ -73,7 +72,6 @@ const InputData: React.FC = () => {
     // --- UI STATES ---
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editItem, setEditItem] = useState<any>(null); 
-    const [isAiLoading, setIsAiLoading] = useState<string | null>(null);
 
     // --- LOAD DATA ---
     useEffect(() => {
@@ -249,42 +247,6 @@ const InputData: React.FC = () => {
         setUnsavedChanges(true);
     };
 
-    // --- AI ASSISTANT ---
-    const handleAIGenerate = async (fieldKey: string) => {
-        setIsAiLoading(fieldKey);
-        try {
-            const apiKey = process.env.API_KEY;
-            if (!apiKey) {
-                throw new Error("API Key tidak ditemukan.\n\nSOLUSI UNTUK BUILD MANUAL:\n1. Buat file bernama '.env' di folder project (laptop).\n2. Isi dengan: API_KEY=kunci_gemini_anda\n3. Jalankan 'npm run build' lagi.\n4. Upload ulang folder dist.");
-            }
-
-            const ai = new GoogleGenAI({ apiKey });
-            const prompt = `Sebagai Guru Wali di SMKN 1 Mondokan, buatkan kalimat narasi atau deskripsi singkat untuk laporan siswa pada kolom "${fieldKey.replace(/_/g, ' ')}". 
-            Berikan contoh kalimat yang positif, membangun, dan profesional. 
-            Tidak perlu terlalu panjang (maksimal 2-3 kalimat).`;
-
-            const response = await ai.models.generateContent({
-                model: 'gemini-3-flash-preview',
-                contents: prompt,
-            });
-
-            if (response.text) {
-                const newText = response.text.trim().replace(/^"|"$/g, '');
-                setSheetData((prev: any) => ({
-                    ...prev,
-                    [fieldKey]: newText
-                }));
-                setUnsavedChanges(true);
-            }
-        } catch (error: any) {
-            console.error("AI Generation Error:", error);
-            // Tampilkan pesan error spesifik agar user tahu masalahnya
-            alert(`Gagal menggunakan AI:\n${error.message || error}`);
-        } finally {
-            setIsAiLoading(null);
-        }
-    };
-
     // --- RENDERERS ---
 
     const renderTabs = () => (
@@ -369,17 +331,6 @@ const InputData: React.FC = () => {
                         <div key={key} className="relative">
                             <div className="flex justify-between items-center mb-1">
                                 <label className="block text-xs font-bold text-gray-500 uppercase">{key.replace(/_/g, ' ')}</label>
-                                {!isDate && (
-                                    <button 
-                                        onClick={() => handleAIGenerate(key)}
-                                        disabled={isAiLoading === key}
-                                        className="flex items-center gap-1 text-[10px] bg-purple-100 text-purple-700 px-2 py-1 rounded hover:bg-purple-200 transition-colors"
-                                        title="Buat deskripsi dengan Bantuan AI"
-                                    >
-                                        {isAiLoading === key ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-                                        Bantuan AI
-                                    </button>
-                                )}
                             </div>
                             
                             {isDate ? (
