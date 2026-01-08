@@ -1,8 +1,10 @@
+
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../contexts/AppContext';
 import { gasService } from '../services/gasService';
 import { IdentityData, Student, ProkerItem, JadwalItem, SheetName } from '../types';
-import { Save, Edit2, Maximize2, Loader2, X, Check, ChevronDown, Plus, Trash2 } from 'lucide-react';
+import { Save, Edit2, Loader2, X, Check, Plus, Trash2, Sparkles } from 'lucide-react';
+import { GoogleGenAI } from "@google/genai";
 
 // --- TYPE DEFINITIONS FOR LOCAL STATE ---
 type TabType = 'identitas' | 'dataSiswa' | 'proker' | 'jadwal' | 'pertemuan' | 'legerNilaiSemester';
@@ -52,6 +54,7 @@ const FormInput = ({ label, value, onChange, type = "text", as = "input" }: any)
 const InputData: React.FC = () => {
     const { setLoading, isLoading } = useApp();
     const [activeTab, setActiveTab] = useState<TabType>('identitas');
+    const [unsavedChanges, setUnsavedChanges] = useState(false);
     
     // --- DATA STATES ---
     const [identity, setIdentity] = useState<IdentityData>({
@@ -70,18 +73,41 @@ const InputData: React.FC = () => {
     // --- UI STATES ---
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editItem, setEditItem] = useState<any>(null); 
+    const [isAiLoading, setIsAiLoading] = useState<string | null>(null);
 
     // --- LOAD DATA ---
     useEffect(() => {
         loadData();
     }, [activeTab, meetingNum]);
 
+    // Enhanced logic to handle new students who don't have a row in DB yet
     useEffect(() => {
-        if (['pertemuan', 'legerNilaiSemester'].includes(activeTab) && selectedStudentId && genericListData.length > 0) {
+        if (['pertemuan', 'legerNilaiSemester'].includes(activeTab) && genericListData.length > 0) {
+            // 1. Try to find existing data for the selected student
             const found = genericListData.find(r => String(r.No) === String(selectedStudentId));
-            setSheetData(found || {});
+            
+            if (found) {
+                setSheetData(found);
+            } else if (genericListData.length > 0) {
+                // 2. If not found (New Student), use the first record to generate the schema (keys)
+                // This ensures textboxes appear even if the student is new.
+                const schemaItem = genericListData[0];
+                const emptyState: any = {};
+                
+                // Copy keys but set values to empty string
+                Object.keys(schemaItem).forEach(key => {
+                    emptyState[key] = ''; 
+                });
+                
+                // Preserve ID so it saves correctly
+                emptyState['No'] = selectedStudentId; 
+                setSheetData(emptyState);
+            }
+        } else if (['pertemuan', 'legerNilaiSemester'].includes(activeTab)) {
+             // Fallback if sheet is completely empty
+             setSheetData({}); 
         }
-    }, [selectedStudentId, genericListData]);
+    }, [selectedStudentId, genericListData, activeTab]);
 
     const loadData = async () => {
         setLoading(true);
@@ -110,6 +136,7 @@ const InputData: React.FC = () => {
                 setStudents(s);
                 if (s.length > 0 && !selectedStudentId) setSelectedStudentId(String(s[0].no));
             }
+            setUnsavedChanges(false);
         } catch (e) {
             console.error(e);
         } finally {
@@ -117,7 +144,7 @@ const InputData: React.FC = () => {
         }
     };
 
-    // --- SAVE HANDLERS ---
+    // --- SAVE HANDLERS (PERSIST TO SERVER) ---
 
     const handleSave = async () => {
         setLoading(true);
@@ -127,7 +154,9 @@ const InputData: React.FC = () => {
                 success = await gasService.updateSheetData('identitas', identity);
             } 
             else if (activeTab === 'dataSiswa') {
-                success = await gasService.updateSheetData('dataSiswa', students);
+                // Pastikan students bukan referensi lama, kirim deep copy jika perlu
+                const dataToSend = [...students]; 
+                success = await gasService.updateSheetData('dataSiswa', dataToSend);
             }
             else if (activeTab === 'proker') {
                 success = await gasService.updateSheetData('proker', proker);
@@ -143,19 +172,23 @@ const InputData: React.FC = () => {
                 });
             }
 
-            if (success) alert('Data berhasil disimpan ke Spreadsheet!');
-            else throw new Error("Gagal menyimpan");
-            
-            loadData();
+            if (success) {
+                alert('Data BERHASIL disimpan ke Server!');
+                setUnsavedChanges(false);
+                // Reload to sync new IDs if any
+                loadData(); 
+            } else {
+                throw new Error("Gagal menyimpan");
+            }
         } catch (e) {
             console.error(e);
-            alert('Terjadi kesalahan saat menyimpan data.');
+            alert('Terjadi kesalahan saat menyimpan data ke server.');
         } finally {
             setLoading(false);
         }
     };
 
-    // --- LOCAL DATA MANIPULATION (Add/Delete/Edit) ---
+    // --- LOCAL DATA MANIPULATION (LOCAL STATE ONLY) ---
 
     const openEditModal = (item: any) => {
         setEditItem({ ...item }); 
@@ -174,26 +207,33 @@ const InputData: React.FC = () => {
             contact: '',
             notes: ''
         };
-        // Add to local state
-        setStudents([...students, newStudent]);
-        // Open modal to fill details
+        // 1. Update LOCAL state immediately
+        setStudents(prev => [...prev, newStudent]);
+        setUnsavedChanges(true);
+        // 2. Open modal to edit details
         openEditModal(newStudent);
     };
 
-    const handleDeleteStudent = (no: number) => {
-        if (window.confirm(`Yakin ingin menghapus siswa No. ${no}?`)) {
-            // Filter out the student
-            const filtered = students.filter(s => s.no !== no);
-            // Re-index the 'no' property to ensure sequence (1, 2, 3...)
-            const reIndexed = filtered.map((s, index) => ({
-                ...s,
-                no: index + 1
-            }));
-            setStudents(reIndexed);
+    const handleDeleteStudent = (no: any) => {
+        if (window.confirm(`Hapus siswa No. ${no}? \n(Data akan hilang dari layar, Klik tombol SIMPAN DATA di bawah untuk menghapus permanen di server)`)) {
+            // Menggunakan callback di setStudents untuk menjamin state terbaru yang diubah
+            setStudents(prevStudents => {
+                const filtered = prevStudents.filter(s => String(s.no) !== String(no));
+                
+                // Re-index agar urutan nomor kembali rapi (1, 2, 3...)
+                const reIndexed = filtered.map((s, index) => ({
+                    ...s,
+                    no: index + 1
+                }));
+                
+                return reIndexed;
+            });
+            setUnsavedChanges(true);
         }
     };
 
-    const saveEditItem = () => {
+    // Function applied when user clicks "OK/Simpan" inside the Modal
+    const applyLocalChanges = () => {
         if (!editItem) return;
 
         if (activeTab === 'dataSiswa') {
@@ -206,6 +246,37 @@ const InputData: React.FC = () => {
         
         setIsEditModalOpen(false);
         setEditItem(null);
+        setUnsavedChanges(true);
+    };
+
+    // --- AI ASSISTANT ---
+    const handleAIGenerate = async (fieldKey: string) => {
+        setIsAiLoading(fieldKey);
+        try {
+            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            const prompt = `Sebagai Guru Wali di SMKN 1 Mondokan, buatkan kalimat narasi atau deskripsi singkat untuk laporan siswa pada kolom "${fieldKey.replace(/_/g, ' ')}". 
+            Berikan contoh kalimat yang positif, membangun, dan profesional. 
+            Tidak perlu terlalu panjang (maksimal 2-3 kalimat).`;
+
+            const response = await ai.models.generateContent({
+                model: 'gemini-3-flash-preview',
+                contents: prompt,
+            });
+
+            if (response.text) {
+                const newText = response.text.trim().replace(/^"|"$/g, '');
+                setSheetData((prev: any) => ({
+                    ...prev,
+                    [fieldKey]: newText
+                }));
+                setUnsavedChanges(true);
+            }
+        } catch (error) {
+            console.error("AI Generation Error:", error);
+            alert("Gagal menggunakan AI. Coba lagi nanti.");
+        } finally {
+            setIsAiLoading(null);
+        }
     };
 
     // --- RENDERERS ---
@@ -213,13 +284,12 @@ const InputData: React.FC = () => {
     const renderTabs = () => (
         <div className="flex gap-2 overflow-x-auto pb-4 mb-4 hide-scrollbar">
             {[
-                { id: 'identitas', label: '1. Identitas' },
-                // Sampul removed here
-                { id: 'dataSiswa', label: '2. Data Murid' },
-                { id: 'proker', label: '3. Proker' },
-                { id: 'jadwal', label: '4. Jadwal' },
-                { id: 'pertemuan', label: '5. Laporan Pertemuan' },
-                { id: 'legerNilaiSemester', label: '6. Leger Nilai' },
+                { id: 'identitas', label: 'Identitas' },
+                { id: 'dataSiswa', label: 'Data Murid' },
+                { id: 'proker', label: 'Proker' },
+                { id: 'jadwal', label: 'Jadwal' },
+                { id: 'pertemuan', label: 'Laporan Pertemuan' },
+                { id: 'legerNilaiSemester', label: 'Leger Nilai' },
             ].map(tab => (
                 <button
                     key={tab.id}
@@ -240,16 +310,13 @@ const InputData: React.FC = () => {
         <div className="space-y-4">
             <h2 className="text-lg font-bold border-b pb-2 mb-4 dark:text-white dark:border-gray-600">{title}</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormInput label="Nama Guru Wali" value={data.namaGuru} onChange={(v: string) => setData({...data, namaGuru: v})} />
-                <FormInput label="NIP Guru" value={data.nipGuru} onChange={(v: string) => setData({...data, nipGuru: v})} />
-                <FormInput label="Kepala Sekolah" value={data.kepalaSekolah} onChange={(v: string) => setData({...data, kepalaSekolah: v})} />
-                <FormInput label="NIP KS" value={data.nipKs} onChange={(v: string) => setData({...data, nipKs: v})} />
-                <FormInput label="Bulan" value={data.bulan} onChange={(v: string) => setData({...data, bulan: v})} />
-                <FormInput label="Semester" value={data.semester} onChange={(v: string) => setData({...data, semester: v})} />
-                <FormInput label="Tahun Pelajaran" value={data.tahun} onChange={(v: string) => setData({...data, tahun: v})} />
-                <div className="md:col-span-2">
-                    <FormInput label="Link Logo Sekolah (URL)" value={data.logoUrl} onChange={(v: string) => setData({...data, logoUrl: v})} />
-                </div>
+                <FormInput label="Nama Guru Wali" value={data.namaGuru} onChange={(v: string) => {setData({...data, namaGuru: v}); setUnsavedChanges(true);}} />
+                <FormInput label="NIP Guru" value={data.nipGuru} onChange={(v: string) => {setData({...data, nipGuru: v}); setUnsavedChanges(true);}} />
+                <FormInput label="Kepala Sekolah" value={data.kepalaSekolah} onChange={(v: string) => {setData({...data, kepalaSekolah: v}); setUnsavedChanges(true);}} />
+                <FormInput label="NIP KS" value={data.nipKs} onChange={(v: string) => {setData({...data, nipKs: v}); setUnsavedChanges(true);}} />
+                <FormInput label="Bulan" value={data.bulan} onChange={(v: string) => {setData({...data, bulan: v}); setUnsavedChanges(true);}} />
+                <FormInput label="Semester" value={data.semester} onChange={(v: string) => {setData({...data, semester: v}); setUnsavedChanges(true);}} />
+                <FormInput label="Tahun" value={data.tahun} onChange={(v: string) => {setData({...data, tahun: v}); setUnsavedChanges(true);}} />
             </div>
         </div>
     );
@@ -286,38 +353,61 @@ const InputData: React.FC = () => {
     );
 
     const renderGenericForm = () => {
-        // Exclude system keys
         const keys = Object.keys(sheetData).filter(k => k !== 'No' && k !== 'studentId' && k !== 'row' && k !== 'id');
         
         return (
             <div className="grid grid-cols-1 gap-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                {keys.map((key) => (
-                    <div key={key} className="relative">
-                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">{key.replace(/_/g, ' ')}</label>
-                        {key.toLowerCase().includes('tanggal') ? (
-                             <input 
-                                type="date"
-                                className="w-full px-4 py-2 rounded-lg border border-gray-300 bg-white text-black"
-                                value={sheetData[key] ? new Date(sheetData[key]).toISOString().split('T')[0] : ''}
-                                onChange={(e) => setSheetData({...sheetData, [key]: e.target.value})}
-                             />
-                        ) : (
-                            <textarea 
-                                rows={3}
-                                className="w-full px-4 py-2 rounded-lg border border-gray-300 bg-white text-black focus:ring-2 focus:ring-primary outline-none"
-                                value={sheetData[key]}
-                                onChange={(e) => setSheetData({...sheetData, [key]: e.target.value})}
-                            />
-                        )}
-                    </div>
-                ))}
+                {keys.map((key) => {
+                    const isDate = key.toLowerCase().includes('tanggal');
+                    return (
+                        <div key={key} className="relative">
+                            <div className="flex justify-between items-center mb-1">
+                                <label className="block text-xs font-bold text-gray-500 uppercase">{key.replace(/_/g, ' ')}</label>
+                                {!isDate && (
+                                    <button 
+                                        onClick={() => handleAIGenerate(key)}
+                                        disabled={isAiLoading === key}
+                                        className="flex items-center gap-1 text-[10px] bg-purple-100 text-purple-700 px-2 py-1 rounded hover:bg-purple-200 transition-colors"
+                                        title="Buat deskripsi dengan Bantuan AI"
+                                    >
+                                        {isAiLoading === key ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                                        Bantuan AI
+                                    </button>
+                                )}
+                            </div>
+                            
+                            {isDate ? (
+                                <input 
+                                    type="date"
+                                    className="w-full px-4 py-2 rounded-lg border border-gray-300 bg-white text-black"
+                                    value={sheetData[key] ? sheetData[key] : ''} // Keep YYYY-MM-DD for input
+                                    onChange={(e) => {setSheetData({...sheetData, [key]: e.target.value}); setUnsavedChanges(true);}}
+                                />
+                            ) : (
+                                <textarea 
+                                    rows={3}
+                                    className="w-full px-4 py-2 rounded-lg border border-gray-300 bg-white text-black focus:ring-2 focus:ring-primary outline-none"
+                                    value={sheetData[key]}
+                                    onChange={(e) => {setSheetData({...sheetData, [key]: e.target.value}); setUnsavedChanges(true);}}
+                                />
+                            )}
+                        </div>
+                    );
+                })}
             </div>
         );
     };
 
     return (
         <div className="max-w-6xl mx-auto pb-24">
-            <h1 className="text-2xl font-bold mb-6 text-gray-800 dark:text-white">Input & Edit Data</h1>
+            <div className="flex justify-between items-center mb-6">
+                <h1 className="text-2xl font-bold text-gray-800 dark:text-white">Input & Edit Data</h1>
+                {unsavedChanges && (
+                    <span className="text-xs bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full font-bold animate-pulse">
+                        Ada perubahan belum disimpan, jangan lupa klik tombol SIMPAN DATA
+                    </span>
+                )}
+            </div>
             
             {renderTabs()}
 
@@ -325,7 +415,7 @@ const InputData: React.FC = () => {
                 {isLoading ? (
                     <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 dark:bg-paperDark/80 z-10 rounded-xl">
                         <Loader2 className="animate-spin text-primary mb-2 w-10 h-10" />
-                        <span className="text-sm font-medium text-gray-500">Memuat data...</span>
+                        <span className="text-sm font-medium text-gray-500">Memuat / Menyimpan ke Server...</span>
                     </div>
                 ) : (
                     <>
@@ -357,7 +447,7 @@ const InputData: React.FC = () => {
                                             <td className="px-4 py-3">{s.gender}</td>
                                         </>
                                     ),
-                                    (item) => handleDeleteStudent(item.no) // Pass delete handler
+                                    (item) => handleDeleteStudent(item.no) 
                                 )}
                             </>
                         )}
@@ -373,30 +463,48 @@ const InputData: React.FC = () => {
                                         <>
                                             <td className="px-4 py-3">{p.no}</td>
                                             <td className="px-4 py-3 font-medium dark:text-white">{p.pilar}</td>
-                                            <td className="px-4 py-3 truncate max-w-[200px]">{p.kegiatan}</td>
-                                            <td className="px-4 py-3 truncate max-w-[200px]">{p.indikator}</td>
+                                            <td className="px-4 py-3 whitespace-pre-wrap">{p.kegiatan}</td>
+                                            <td className="px-4 py-3 whitespace-pre-wrap">{p.indikator}</td>
                                         </>
                                     )
                                 )}
                             </>
                         )}
 
-                        {/* --- JADWAL --- */}
+                        {/* --- JADWAL (REVISED STRUCTURE) --- */}
                         {activeTab === 'jadwal' && (
                             <>
-                                <h2 className="text-lg font-bold mb-4 dark:text-white">Jadwal Kegiatan</h2>
-                                {renderTable(
-                                    ['Bulan', 'Kegiatan', 'Keterangan', 'Semester'], 
-                                    jadwal, 
-                                    (j) => (
-                                        <>
-                                            <td className="px-4 py-3 font-medium dark:text-white">{j.bulan}</td>
-                                            <td className="px-4 py-3">{j.kegiatan}</td>
-                                            <td className="px-4 py-3">{j.keterangan}</td>
-                                            <td className="px-4 py-3"><span className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-xs">{j.semesterType}</span></td>
-                                        </>
-                                    )
-                                )}
+                                <h2 className="text-lg font-bold mb-4 dark:text-white">JADWAL KEGIATAN GURU WALI</h2>
+                                
+                                <div className="mb-8">
+                                    <h3 className="text-md font-bold mb-2 dark:text-white border-b border-gray-300 dark:border-gray-600 inline-block">Semester Gasal</h3>
+                                    {renderTable(
+                                        ['Bulan', 'Kegiatan', 'Keterangan'], 
+                                        jadwal.filter(j => j.semesterType === 'Gasal'), 
+                                        (j) => (
+                                            <>
+                                                <td className="px-4 py-3 font-medium dark:text-white">{j.bulan}</td>
+                                                <td className="px-4 py-3 whitespace-pre-wrap">{j.kegiatan}</td>
+                                                <td className="px-4 py-3 whitespace-pre-wrap">{j.keterangan}</td>
+                                            </>
+                                        )
+                                    )}
+                                </div>
+
+                                <div>
+                                    <h3 className="text-md font-bold mb-2 dark:text-white border-b border-gray-300 dark:border-gray-600 inline-block">Semester Genap</h3>
+                                    {renderTable(
+                                        ['Bulan', 'Kegiatan', 'Keterangan'], 
+                                        jadwal.filter(j => j.semesterType === 'Genap'), 
+                                        (j) => (
+                                            <>
+                                                <td className="px-4 py-3 font-medium dark:text-white">{j.bulan}</td>
+                                                <td className="px-4 py-3 whitespace-pre-wrap">{j.kegiatan}</td>
+                                                <td className="px-4 py-3 whitespace-pre-wrap">{j.keterangan}</td>
+                                            </>
+                                        )
+                                    )}
+                                </div>
                             </>
                         )}
 
@@ -436,22 +544,27 @@ const InputData: React.FC = () => {
                         <div className="mt-8 pt-6 border-t dark:border-gray-600 sticky bottom-0 bg-white dark:bg-paperDark pb-2">
                             <button 
                                 onClick={handleSave}
-                                className="w-full bg-primary hover:bg-blue-600 text-white font-bold py-4 px-6 rounded-xl shadow-xl shadow-blue-500/20 flex items-center justify-center gap-3 transition-all active:scale-[0.98] transform hover:-translate-y-1"
+                                className={`w-full font-bold py-4 px-6 rounded-xl shadow-xl flex items-center justify-center gap-3 transition-all active:scale-[0.98] transform hover:-translate-y-1 ${
+                                    unsavedChanges 
+                                    ? 'bg-primary hover:bg-blue-600 text-white shadow-blue-500/20' 
+                                    : 'bg-gray-200 text-gray-500 hover:bg-gray-300'
+                                }`}
                             >
                                 <Save size={24} /> SIMPAN DATA
                             </button>
+                            <p className="text-center text-xs text-gray-500 mt-2">*Pastikan klik tombol ini setelah menambah/menghapus/mengedit data.</p>
                         </div>
                     </>
                 )}
             </div>
 
-            {/* --- MODAL EDIT --- */}
+            {/* --- MODAL EDIT (LOCAL ONLY) --- */}
             <Modal 
                 isOpen={isEditModalOpen} 
                 onClose={() => setIsEditModalOpen(false)} 
                 title={
-                    activeTab === 'dataSiswa' ? 'Edit Data Murid' : 
-                    activeTab === 'proker' ? 'Edit Program Kerja' : 'Edit Jadwal'
+                    activeTab === 'dataSiswa' ? 'Edit Data Murid (Lokal)' : 
+                    activeTab === 'proker' ? 'Edit Program Kerja (Lokal)' : 'Edit Jadwal (Lokal)'
                 }
             >
                 {editItem && (
@@ -490,8 +603,9 @@ const InputData: React.FC = () => {
 
                         <div className="pt-4 flex justify-end gap-2">
                             <button onClick={() => setIsEditModalOpen(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">Batal</button>
-                            <button onClick={saveEditItem} className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2">
-                                <Check size={18} /> Simpan Perubahan
+                            {/* Change button label to emphasize LOCAL action */}
+                            <button onClick={applyLocalChanges} className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2">
+                                <Check size={18} /> Selesai/Tutup
                             </button>
                         </div>
                     </div>

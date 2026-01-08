@@ -1,3 +1,4 @@
+
 @media print {
   @page {
     margin: 0;
@@ -31,6 +32,15 @@
       transform: none !important;
       width: auto !important;
       margin: 0 auto !important;
+  }
+  
+  /* Force page break after each student block */
+  .page-break {
+      page-break-after: always;
+      break-after: page;
+      display: block;
+      min-height: 100vh;
+      position: relative;
   }
 }
 
